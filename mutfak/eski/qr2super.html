@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Reader with Product Table</title>
+    <script src="html5-qrcode-master/minified/html5-qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        #reader {
+            width: 300px;
+            margin: 20px auto;
+        }
+        #results {
+            margin-top: 20px;
+        }
+        table {
+            width: 90%;
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>QR Code Reader with Product Table</h1>
+    <button id="start-btn">Start Scanning</button>
+    <div id="reader" style="display: none;"></div>
+    <div id="results">
+        <h2>Scanned Products</h2>
+        <table id="product-table">
+            <thead>
+                <tr>
+                    <th>Product Code</th>
+                    <th>Year</th>
+                    <th>Month</th>
+                    <th>Product Name</th>
+                    <th>Full QR Code</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const startButton = document.getElementById('start-btn');
+        const readerDiv = document.getElementById('reader');
+        const productTableBody = document.querySelector('#product-table tbody');
+        let qrCodeScanner;
+
+        const productNames = {
+            "0108680760092235": "Ibucold C 30 tb"
+        };
+
+        startButton.addEventListener('click', () => {
+            if (!qrCodeScanner) {
+                startScanning();
+            }
+        });
+
+        function startScanning() {
+            readerDiv.style.display = 'block';
+            startButton.disabled = true;
+
+            qrCodeScanner = new Html5Qrcode("reader");
+            qrCodeScanner.start(
+                { facingMode: "environment" }, // Use the back camera
+                {
+                    fps: 10, // Frames per second
+                    qrbox: 250, // Display area size
+                },
+                (decodedText) => {
+                    stopScanning();
+                    processScannedCode(decodedText);
+                },
+                (errorMessage) => {
+                    console.log(`QR Code scanning failed: ${errorMessage}`);
+                }
+            ).catch(err => {
+                console.error(`Unable to start scanning: ${err}`);
+                startButton.disabled = false;
+            });
+        }
+
+        function stopScanning() {
+            if (qrCodeScanner) {
+                qrCodeScanner.stop().then(() => {
+                    qrCodeScanner.clear();
+                    qrCodeScanner = null;
+                    readerDiv.style.display = 'none';
+                    startButton.disabled = false;
+                }).catch(err => {
+                    console.error(`Unable to stop scanning: ${err}`);
+                });
+            }
+        }
+
+        function processScannedCode(decodedText) {
+            const parts = decodedText.split('');
+            if (parts.length < 3) {
+                console.error('Invalid QR Code format.');
+                return;
+            }
+
+            const productCode = parts[1].slice(0, 16);
+            const year = "20" + parts[2].slice(2, 4);
+            const month = parts[2].slice(4, 6);
+            const productName = productNames[productCode] || "Unknown Product";
+
+            addProductToTable(productCode, year, month, productName, decodedText);
+        }
+
+        function addProductToTable(productCode, year, month, productName, fullCode) {
+            const newRow = document.createElement('tr');
+
+            newRow.innerHTML = `
+                <td>${productCode}</td>
+                <td>${year}</td>
+                <td>${month}</td>
+                <td>${productName}</td>
+                <td>${fullCode}</td>
+            `;
+
+            productTableBody.appendChild(newRow);
+
+            sortTable();
+        }
+
+        function sortTable() {
+            const rows = Array.from(productTableBody.rows);
+            rows.sort((a, b) => {
+                const productA = a.cells[0].textContent;
+                const productB = b.cells[0].textContent;
+
+                if (productA === productB) {
+                    const yearA = a.cells[1].textContent;
+                    const yearB = b.cells[1].textContent;
+
+                    if (yearA === yearB) {
+                        const monthA = parseInt(a.cells[2].textContent);
+                        const monthB = parseInt(b.cells[2].textContent);
+                        return monthA - monthB;
+                    }
+
+                    return yearA.localeCompare(yearB);
+                }
+
+                return productA.localeCompare(productB);
+            });
+
+            productTableBody.innerHTML = '';
+            rows.forEach(row => productTableBody.appendChild(row));
+        }
+    </script>
+</body>
+</html>

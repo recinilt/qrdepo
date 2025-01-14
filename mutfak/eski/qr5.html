@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR and Barcode Reader with Product Table</title>
+    <script src="html5-qrcode-master/minified/html5-qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        #reader {
+            width: 300px;
+            margin: 20px auto;
+        }
+        #results {
+            margin-top: 20px;
+        }
+        table {
+            width: 90%;
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>QR and Barcode Reader with Product Table</h1>
+    <button id="start-btn">Start Scanning</button>
+    <div id="reader" style="display: none;"></div>
+    <div id="results">
+        <h2>Scanned Products</h2>
+        <table id="product-table">
+            <thead>
+                <tr>
+                    <th>Product Code</th>
+                    <th>Year</th>
+                    <th>Month</th>
+                    <th>Product Name</th>
+                    <th>Full QR/Barcode</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="summary-results">
+        <h2>Product Summary</h2>
+        <table id="summary-table">
+            <thead>
+                <tr>
+                    <th>Product Name</th>
+                    <th>Total Count</th>
+                    <th>Details (Year-Month: Count)</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+    
+
+
+    <script>
+
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const productNames = {
+                "0108680760092235": "Ibucold C 30 tb",
+                // Sabit ürün adlarını buraya ekleyebilirsiniz
+            };
+        
+            const productTableBody = document.querySelector('#product-table tbody');
+        
+            // LocalStorage'den ürün adlarını yükle
+            const storedProductNames = JSON.parse(localStorage.getItem("productNames")) || {};
+        
+            // LocalStorage'deki ürün adları, sabit bilgilere öncelik verir
+            Object.assign(productNames, storedProductNames);
+        
+            function updateProductNameInStorage(productCode, productName) {
+                storedProductNames[productCode] = productName;
+                localStorage.setItem("productNames", JSON.stringify(storedProductNames));
+            }
+        
+            function addProductToTable(productCode, year, month, productName, fullCode) {
+                const newRow = document.createElement('tr');
+        
+                const finalProductName = storedProductNames[productCode] || productNames[productCode] || productName || "Unknown Product";
+        
+                newRow.innerHTML = `
+                    <td>${productCode}</td>
+                    <td>${year}</td>
+                    <td>${month}</td>
+                    <td>${finalProductName}</td>
+                    <td>${fullCode}</td>
+                    <td>
+                        <input type="text" value="${finalProductName}" placeholder="Enter product name" />
+                        <button>Save</button>
+                    </td>
+                `;
+        
+                // Kaydet butonu işlevi
+                const inputField = newRow.querySelector('input');
+                const saveButton = newRow.querySelector('button');
+                saveButton.addEventListener("click", () => {
+                    const newName = inputField.value.trim();
+                    if (newName) {
+                        updateProductNameInStorage(productCode, newName);
+                        newRow.cells[3].textContent = newName; // Tabloda ürün adını güncelle
+                        alert(`Product name updated to: ${newName}`);
+                    } else {
+                        alert("Product name cannot be empty!");
+                    }
+                });
+        
+                productTableBody.appendChild(newRow);
+                updateSummaryTable();
+            }
+        
+            // Tüm ürün adlarını güncelle (LocalStorage'yi yansıtarak)
+            function refreshProductNames() {
+                Array.from(productTableBody.rows).forEach(row => {
+                    const productCode = row.cells[0].textContent;
+                    const storedName = storedProductNames[productCode];
+                    if (storedName) {
+                        row.cells[3].textContent = storedName;
+                    }
+                });
+            }
+        
+            // Özet tablosunu güncelle
+            function updateSummaryTable() {
+                const rows = Array.from(productTableBody.rows);
+                const productSummary = {};
+        
+                rows.forEach(row => {
+                    const productName = row.cells[3].textContent;
+                    const year = row.cells[1].textContent;
+                    const month = row.cells[2].textContent;
+                    const yearMonth = `${year}-${month}`;
+        
+                    if (!productSummary[productName]) {
+                        productSummary[productName] = { total: 0, details: {} };
+                    }
+        
+                    productSummary[productName].total += 1;
+        
+                    if (!productSummary[productName].details[yearMonth]) {
+                        productSummary[productName].details[yearMonth] = 0;
+                    }
+        
+                    productSummary[productName].details[yearMonth] += 1;
+                });
+        
+                const summaryTableBody = document.querySelector('#summary-table tbody');
+                summaryTableBody.innerHTML = '';
+        
+                Object.keys(productSummary).sort().forEach(productName => {
+                    const product = productSummary[productName];
+                    const detailStrings = Object.entries(product.details)
+                        .map(([yearMonth, count]) => `${yearMonth}: ${count}`)
+                        .join(', ');
+        
+                    const newRow = document.createElement('tr');
+                    newRow.innerHTML = `
+                        <td>${productName}</td>
+                        <td>${product.total}</td>
+                        <td>${detailStrings}</td>
+                    `;
+        
+                    summaryTableBody.appendChild(newRow);
+                });
+            }
+        
+            // Yeni ürün eklendiğinde tabloya ekleme
+            window.addProductToTable = addProductToTable;
+        
+            // Sayfa yüklendiğinde ürün adlarını güncelle
+            refreshProductNames();
+
+            document.getElementById("start-btn").addEventListener("click", () => {
+                const readerDiv = document.getElementById("reader");
+                readerDiv.style.display = "block";
+                const html5QrCode = new Html5Qrcode("reader");
+
+                html5QrCode.start(
+                    { facingMode: "environment" },
+                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    (decodedText, decodedResult) => {
+                        const currentDate = new Date();
+                        const year = currentDate.getFullYear();
+                        const month = currentDate.getMonth() + 1;
+                        const productCode = decodedText.split('-')[0];
+                        addProductToTable(productCode, year, month, null, decodedText);
+                    },
+                    (errorMessage) => {
+                        console.log(`Error scanning: ${errorMessage}`);
+                    }
+                ).catch((err) => {
+                    console.error(`Unable to start scanning: ${err}`);
+                });
+            });
+        });
+        </script>
+        
+</body>
+</html>

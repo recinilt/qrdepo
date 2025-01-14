@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR and Barcode Reader with Product Table</title>
+    <script src="html5-qrcode-master/minified/html5-qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        #reader {
+            width: 300px;
+            margin: 20px auto;
+        }
+        #results {
+            margin-top: 20px;
+        }
+        table {
+            width: 90%;
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>QR and Barcode Reader with Product Table</h1>
+    <button id="start-btn">Start Scanning</button>
+    <div id="reader" style="display: none;"></div>
+    <div id="results">
+        <h2>Scanned Products</h2>
+        <table id="product-table">
+            <thead>
+                <tr>
+                    <th>Product Code</th>
+                    <th>Year</th>
+                    <th>Month</th>
+                    <th>Product Name</th>
+                    <th>Full QR/Barcode</th>
+                    <th>Actions</th> 
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="summary-results">
+        <h2>Product Summary</h2>
+        <table id="summary-table">
+            <thead>
+                <tr>
+                    <th>Product Name</th>
+                    <th>Total Count</th>
+                    <th>Details (Year-Month: Count)</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+    
+
+    <script>
+        const startButton = document.getElementById('start-btn');
+        const readerDiv = document.getElementById('reader');
+        const productTableBody = document.querySelector('#product-table tbody');
+        let qrCodeScanner;
+
+        // Başlangıçta ürün adlarını depolamak için bir nesne
+        let productNames = {
+            "0108680760092235": "Ibucold C 30 tb"
+        };
+
+        // Local Storage'dan ürün adlarını yükle
+        function loadProductNames() {
+            const storedNames = localStorage.getItem('productNames');
+            if (storedNames) {
+                const parsedNames = JSON.parse(storedNames);
+                // HTML'deki varsayılan değerleri koruyarak güncelle
+                productNames = { ...productNames, ...parsedNames };
+            }
+        }
+
+        // Sayfa yüklendiğinde çalıştır
+        loadProductNames();
+
+        startButton.addEventListener('click', () => {
+            if (!qrCodeScanner) {
+                startScanning();
+            }
+        });
+
+        function startScanning() {
+            readerDiv.style.display = 'block';
+            startButton.disabled = true;
+
+            qrCodeScanner = new Html5Qrcode("reader");
+            qrCodeScanner.start(
+                { facingMode: "environment" }, // Use the back camera
+                {
+                    fps: 10,
+                    qrbox: 250,
+                },
+                (decodedText) => {
+                    stopScanning();
+                    processScannedCode(decodedText);
+                },
+                (errorMessage) => {
+                    console.log(`Scanning failed: ${errorMessage}`);
+                }
+            ).catch(err => {
+                console.error(`Unable to start scanning: ${err}`);
+                startButton.disabled = false;
+            });
+        }
+
+        function stopScanning() {
+            if (qrCodeScanner) {
+                qrCodeScanner.stop().then(() => {
+                    qrCodeScanner.clear();
+                    qrCodeScanner = null;
+                    readerDiv.style.display = 'none';
+                    startButton.disabled = false;
+                }).catch(err => {
+                    console.error(`Unable to stop scanning: ${err}`);
+                });
+            }
+        }
+
+        function processScannedCode(decodedText) {
+            // Attempt to split QR code by the delimiter
+            const parts = decodedText.split('');
+            if (parts.length >= 3) {
+                const productCode = parts[1].slice(0, 16);
+                const year = "20" + parts[2].slice(2, 4);
+                const month = parts[2].slice(4, 6);
+                const productName = productNames[productCode] || "Unknown Product";
+                addProductToTable(productCode, year, month, productName, decodedText);
+            } else {
+                // Barkod için Product Code kısmına da barkodu yaz
+                addProductToTable(decodedText, "N/A", "N/A", "Barcode", decodedText); 
+            }
+        }
+
+        function updateSummaryTable() {
+            const rows = Array.from(productTableBody.rows);
+            const productSummary = {};
+
+            // Ürünleri gruplama
+            rows.forEach(row => {
+                const productName = row.cells[3].textContent; 
+                const year = row.cells[1].textContent;
+                const month = row.cells[2].textContent;
+                const yearMonth = `${year}-${month}`;
+
+                if (!productSummary[productName]) {
+                    productSummary[productName] = { total: 0, details: {} };
+                }
+
+                productSummary[productName].total += 1;
+
+                if (!productSummary[productName].details[yearMonth]) {
+                    productSummary[productName].details[yearMonth] = 0;
+                }
+
+                productSummary[productName].details[yearMonth] += 1;
+            });
+
+            // Tabloyu doldurma
+            const summaryTableBody = document.querySelector('#summary-table tbody');
+            summaryTableBody.innerHTML = '';
+
+            Object.keys(productSummary)
+                .sort() // Alfabetik sıralama
+                .forEach(productName => {
+                    const product = productSummary[productName];
+                    const detailStrings = Object.entries(product.details)
+                        .map(([yearMonth, count]) => `${yearMonth}: ${count}`)
+                        .join(', ');
+
+                    const newRow = document.createElement('tr');
+                    newRow.innerHTML = `
+                        <td>${productName}</td>
+                        <td>${product.total}</td>
+                        <td>${detailStrings}</td>
+                    `;
+
+                    summaryTableBody.appendChild(newRow);
+                });
+        }
+
+
+        function addProductToTable(productCode, year, month, productName, fullCode) {
+            const newRow = document.createElement('tr');
+
+// Input ve buton ekleme
+const input = document.createElement('input');
+input.type = 'text';
+input.placeholder = 'Ürün adı girin';
+
+const saveButton = document.createElement('button');
+saveButton.textContent = 'Kaydet';
+saveButton.addEventListener('click', () => {
+    const newProductName = input.value.trim();
+    if (newProductName) {
+        // Ürün adını güncelle
+        const productCell = newRow.cells[3];
+        productCell.textContent = newProductName;
+
+        // Local Storage'a kaydet
+        productNames[productCode] = newProductName;
+        localStorage.setItem('productNames', JSON.stringify(productNames));
+
+        // Özet tabloyu güncelle
+        updateSummaryTable();
+    }
+});
+
+const actionsCell = document.createElement('td');
+actionsCell.appendChild(input);
+actionsCell.appendChild(saveButton);
+
+newRow.innerHTML = `
+    <td>${productCode}</td>
+    <td>${year}</td>
+    <td>${month}</td>
+    <td>${productName}</td> 
+    <td>${fullCode}</td>
+`;
+
+newRow.appendChild(actionsCell); 
+
+productTableBody.appendChild(newRow);
+sortTable();
+updateSummaryTable(); // Özet tablosunu güncelle
+        }
+
+        function sortTable() {
+            const rows = Array.from(productTableBody.rows);
+            rows.sort((a, b) => {
+                const productA = a.cells[0].textContent;
+                const productB = b.cells[0].textContent;
+
+                if (productA === productB) {
+                    const yearA = a.cells[1].textContent;
+                    const yearB = b.cells[1].textContent;
+
+                    if (yearA === yearB) {
+                        const monthA = parseInt(a.cells[2].textContent);
+                        const monthB = parseInt(b.cells[2].textContent);
+                        return monthA - monthB;
+                    }
+
+                    return yearA.localeCompare(yearB);
+                }
+
+                return productA.localeCompare(productB);
+            });
+
+            productTableBody.innerHTML = '';
+            rows.forEach(row => productTableBody.appendChild(row));
+        }
+    </script>
+</body>
+</html>

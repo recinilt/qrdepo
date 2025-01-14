@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Reader</title>
+    <script src="html5-qrcode-master/minified/html5-qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        #reader {
+            width: 300px;
+            margin: 20px auto;
+        }
+        #results {
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>QR Code Reader</h1>
+    <button id="start-btn">Start Scanning</button>
+    <div id="reader" style="display: none;"></div>
+    <div id="results">
+        <h2>Results</h2>
+        <ul id="result-list"></ul>
+    </div>
+
+    <script>
+        const startButton = document.getElementById('start-btn');
+        const readerDiv = document.getElementById('reader');
+        const resultList = document.getElementById('result-list');
+        let qrCodeScanner;
+
+        startButton.addEventListener('click', () => {
+            if (readerDiv.style.display === 'none') {
+                startScanning();
+            } else {
+                stopScanning();
+            }
+        });
+
+        function startScanning() {
+            readerDiv.style.display = 'block';
+            startButton.textContent = 'Stop Scanning';
+
+            qrCodeScanner = new Html5Qrcode("reader");
+            qrCodeScanner.start(
+                { facingMode: "environment" }, // Use the back camera
+                {
+                    fps: 10, // Frames per second
+                    qrbox: 250, // Display area size
+                },
+                (decodedText) => {
+                    stopScanning();
+                    displayResult(decodedText);
+                },
+                (errorMessage) => {
+                    console.log(`QR Code scanning failed: ${errorMessage}`);
+                }
+            ).catch(err => {
+                console.error(`Unable to start scanning: ${err}`);
+            });
+        }
+
+        function stopScanning() {
+            if (qrCodeScanner) {
+                qrCodeScanner.stop().then(() => {
+                    qrCodeScanner.clear();
+                    qrCodeScanner = null;
+                    readerDiv.style.display = 'none';
+                    startButton.textContent = 'Start Scanning';
+                }).catch(err => {
+                    console.error(`Unable to stop scanning: ${err}`);
+                });
+            }
+        }
+
+        function displayResult(decodedText) {
+            const li = document.createElement('li');
+            li.textContent = decodedText;
+            resultList.appendChild(li);
+        }
+    </script>
+</body>
+</html>
