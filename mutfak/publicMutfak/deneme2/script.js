@@ -198,11 +198,11 @@
   actionsCell.appendChild(saveButton);
   
   newRow.innerHTML = `
-      <td>${productCode}</td>
+      <td style="display: none;">${productCode}</td>
       <td>${year}</td>
       <td>${month}</td>
       <td>${productName}</td>
-      <td>${fullCode}</td>
+      <td style="display: none;">${fullCode}</td>
   `;
   
   newRow.appendChild(actionsCell);
@@ -295,6 +295,7 @@
                               <td>${product.total}</td>
                               <td>${product.totalUnits}</td>
                               <td>${detailStrings}</td>
+                              
                               `;
           shelfTableBody.appendChild(newRow);
         });
